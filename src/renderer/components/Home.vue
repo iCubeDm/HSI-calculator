@@ -45,7 +45,8 @@
                     </tr>
                     <tr v-if="isAdding">
                         <td>Добавить</td>
-                        <td><input type="number" class="form-control-sm" v-model="newNozzle"></td>
+                        <td><input type="number" class="form-control-sm" v-model="newNozzle" @keyup.enter="addNozzle()">
+                        </td>
                         <td>
                             <div class="btn btn-sm btn-light" v-on:click="addNozzle()"><span class="fa fa-check"></span>
                             </div>
@@ -54,32 +55,81 @@
                 </table>
                 <hr>
                 <div class="btn btn-success" @click="generateTable()">Сгенерировать</div>
+                <div class="btn btn-secondary" @click="toggleGeneratedOff()">Очистить</div>
             </div>
             <div class="col-md-9">
-                <table class="table table-sm table-striped table-responsive">
-                    <!--HEADER-->
-                    <tr>
-                        <td rowspan="30">
-                            <div class="vertical-text">TFA, мм2</div>
-                        </td>
-                    </tr>
+                <table class="table table-sm table-responsive table-borderless" v-if="isGenerated">
                     <tr>
                         <td></td>
-                        <td v-for="(body, perf) in resultData[2]">{{perf}}</td>
+                        <th colspan="35" class="center-text">Производительность, л/сек</th>
                     </tr>
-                    <tr v-for="(row, tfa) in resultData">
-                        <td>{{tfa}}</td>
-                        <td v-for="(cell, perf) in row" :style="{'background-color':cell.color}"
-                            v-on:click="toggleValue(tfa, perf)">
-                            {{cell.value}}
+                    <tr>
+                        <th rowspan="30"><span>TFA, мм2</span></th>
+                        <td rowspan="30" colspan="35">
+                            <!--CONTENT-->
+                            <table class="table table-sm table-responsive">
+                                <tr>
+                                    <td></td>
+                                    <th class="grey" v-for="(body, perf) in resultData[50]">{{perf}}</th>
+                                </tr>
+                                <tr>
+                                    <td></td>
+                                    <th colspan="35" class="center-text grey">HSI, л.с./дюйм2</th>
+                                </tr>
+                                <tr v-for="(row, tfa) in resultData">
+                                    <th class="grey">{{tfa}}</th>
+                                    <td v-for="(cell, perf) in row" :style="{'background-color':cell.color}"
+                                        v-on:click="toggleValue(tfa, perf)">
+                                        {{cell.value}}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th colspan="36" class="center-text grey">HSI исходя из подобранных насадок долота</th>
+                                </tr>
+                                <tr>
+                                    <th class="grey">{{customTfa}}</th>
+                                    <td v-for="(cell, perf) in customData[customTfa]"
+                                        :style="{'background-color': cell.color}" v-on:click="toggleCustomValue(perf)">
+                                        {{cell.value}}
+                                    </td>
+                                </tr>
+                            </table>
                         </td>
                     </tr>
                 </table>
+
             </div>
         </div>
     </div>
 </template>
 
+
+<style>
+    .input-group > .input-group-prepend {
+        flex: 0 0 60%;
+    }
+
+    .input-group .input-group-text {
+        width: 100%;
+    }
+
+    .center-text {
+        text-align: center;
+    }
+
+    .grey {
+        background-color: lightgrey;
+    }
+
+    th span {
+        transform-origin: 0 100%;
+        transform: rotate(-90deg);
+        white-space: nowrap;
+        display: block;
+        position: absolute;
+        bottom: 50%;
+    }
+</style>
 <script>
   export default {
     name: 'home',
@@ -92,7 +142,10 @@
         },
         newNozzle: '',
         isAdding: false,
-        resultData: {}
+        isGenerated: false,
+        resultData: {},
+        customData: {},
+        customTfa: ''
       }
     },
     methods: {
@@ -112,6 +165,12 @@
       toggleAdding () {
         this.isAdding = !this.isAdding
       },
+      toggleGeneratedOn () {
+        this.isGenerated = true
+      },
+      toggleGeneratedOff () {
+        this.isGenerated = false
+      },
       toggleValue (tfa, perf) {
         let cell = this.resultData[tfa][perf]
         if (cell.value * 1.0 === cell.hsi) {
@@ -121,11 +180,23 @@
           this.resultData[tfa][perf]['value'] = cell.hsi
         }
       },
+      toggleCustomValue (perf) {
+        let cell = this.customData[this.customTfa][perf]
+        if (cell.value * 1.0 === cell.hsi) {
+          this.customData[this.customTfa][perf]['value'] = cell.roundedHsi
+        }
+        else {
+          this.customData[this.customTfa][perf]['value'] = cell.hsi
+        }
+      },
       generateTable () {
         console.log('generation')
         let self = this
         let customTfa = toTfa(this.inputData.nozzles)
-        let result = {mainData: {}, custom: {}}
+        let result = {}
+        let custom = {}
+        custom[customTfa] = {}
+        this.customTfa = customTfa
         TFA_SQUARED_ROWS.forEach(function (tfa, i) {
           result[tfa] = {}
 
@@ -133,18 +204,19 @@
 
             let hsiValue = hsi(perf, self.inputData.solutionDensity, tfa, self.inputData.bitDiameter)
 
-            result['mainData'][tfa][perf] = {
-              roundedHsi: hsiValue >= 5 ? '>5' : (Math.round(hsiValue * 100) / 100).toFixed(2),
-              hsi: hsiValue >= 5 ? '>5' : hsiValue,
-              value: hsiValue >= 5 ? '>5' : (Math.round(hsiValue * 100) / 100).toFixed(2),
+            let moreThan5 = '> 5'
+            result[tfa][perf] = {
+              roundedHsi: hsiValue >= 5 ? moreThan5 : (Math.round(hsiValue * 100) / 100).toFixed(2),
+              hsi: hsiValue >= 5 ? moreThan5 : hsiValue,
+              value: hsiValue >= 5 ? moreThan5 : (Math.round(hsiValue * 100) / 100).toFixed(2),
               color: perc2color(hsiValue * 100.0 / 5)
             }
 
             let customHsi = hsi(perf, self.inputData.solutionDensity, customTfa, self.inputData.bitDiameter)
-            result['custom'][customTfa][perf] = {
-              hsi: customHsi >= 5 ? '>5' : customHsi,
-              roundedHsi: hsiValue >= 5 ? '>5' : (Math.round(customHsi * 100) / 100).toFixed(2),
-              value: hsiValue >= 5 ? '>5' : (Math.round(customHsi * 100) / 100).toFixed(2),
+            custom[customTfa][perf] = {
+              hsi: customHsi >= 5 ? moreThan5 : customHsi,
+              roundedHsi: customHsi >= 5 ? moreThan5 : (Math.round(customHsi * 100) / 100).toFixed(2),
+              value: customHsi >= 5 ? moreThan5 : (Math.round(customHsi * 100) / 100).toFixed(2),
               color: perc2color(customHsi * 100.0 / 5)
             }
 
@@ -153,8 +225,79 @@
 
         console.log(result)
         this.resultData = result
+        console.log(custom)
+        this.customData = custom
+        this.toggleGeneratedOn()
+      },
+      getTfaSquaredRows () {
+        return TFA_SQUARED_ROWS
+      },
+      getPerformanceCols () {
+        return PERFORMANCE_COLS
       }
+
     }
+  }
+
+  function densityToPoundPerGallon (gramPerCubicCentimeter) {
+    if (gramPerCubicCentimeter < 0) return 0.0
+    return gramPerCubicCentimeter * 1.0 / 0.1198
+  }
+
+  function diameterToInches (millimeters) {
+    if (millimeters < 0) return 0.0
+    return millimeters * 1.0 / 25.4
+  }
+
+  function toTfa (diameters) {
+    let s = 0.0
+    diameters.forEach(function (diameter, index) {
+      if (diameter < 0) return
+      s += Math.pow(diameter, 2)
+    })
+    return 0.785 * s
+  }
+
+  function tfaToSquareInches (tfa) {
+    return tfa / (25.4 * 25.4)
+  }
+
+  function performanceToGallonPerMinute (litersPerSecond) {
+    if (litersPerSecond < 0) return 0.0
+    return litersPerSecond * 60.0 / 3.785
+  }
+
+  function hsi (performance, solutionDensity, tfa, bitDiameter) {
+
+    let perfTr = performanceToGallonPerMinute(performance)
+    let tfaTr = tfaToSquareInches(tfa)
+    let bitDiamTr = diameterToInches(bitDiameter)
+    let solDensTr = densityToPoundPerGallon(solutionDensity)
+
+    return 1.27 *
+      (perfTr *
+        (
+          (solDensTr * Math.pow(perfTr, 2))
+          /
+          (10858 * Math.pow(tfaTr, 2))
+        )
+        / 1740
+      ) / Math.pow(bitDiamTr, 2)
+  }
+
+  function perc2color (perc) {
+    if (perc >= 100) return '#FFFFFF'
+    var r, g, b = 0
+    if (perc < 50) {
+      r = 255
+      g = Math.round(5.1 * perc)
+    }
+    else {
+      g = 255
+      r = Math.round(510 - 5.10 * perc)
+    }
+    var h = r * 0x10000 + g * 0x100 + b * 0x1
+    return '#' + ('000000' + h.toString(16)).slice(-6)
   }
 
   // TFA, мм2
@@ -229,76 +372,4 @@
     68,
     70
   ]
-
-  function densityToPoundPerGallon (gramPerCubicCentimeter) {
-    return gramPerCubicCentimeter * 1.0 / 0.1198
-  }
-
-  function diameterToInches (millimeters) {
-    return millimeters * 1.0 / 25.4
-  }
-
-  function toTfa (diameters) {
-    let s = 0.0
-    for (let diameter in diameters) {
-      s += Math.pow(diameter * 1.0, 2)
-    }
-    return s
-  }
-
-  function tfaToSquareInches (tfa) {
-    return tfa / (25.4 * 25.4)
-  }
-
-  function performanceToGallonPerMinute (litersPerSecond) {
-    return litersPerSecond * 60.0 / 3.785
-  }
-
-  function hsi (performance, solutionDensity, tfa, bitDiameter) {
-
-    let perfTr = performanceToGallonPerMinute(performance)
-    let tfaTr = tfaToSquareInches(tfa)
-    let bitDiamTr = diameterToInches(bitDiameter)
-    let solDensTr = densityToPoundPerGallon(solutionDensity)
-
-    return 1.27 *
-      (perfTr *
-        (
-          (solDensTr * Math.pow(perfTr, 2))
-          /
-          (10858 * Math.pow(tfaTr, 2))
-        )
-        / 1740
-      ) / Math.pow(bitDiamTr, 2)
-  }
-
-  function perc2color (perc) {
-    if (perc >= 100) return '#FFFFFF'
-    var r, g, b = 0
-    if (perc < 50) {
-      r = 255
-      g = Math.round(5.1 * perc)
-    }
-    else {
-      g = 255
-      r = Math.round(510 - 5.10 * perc)
-    }
-    var h = r * 0x10000 + g * 0x100 + b * 0x1
-    return '#' + ('000000' + h.toString(16)).slice(-6)
-  }
 </script>
-
-<style>
-    .input-group > .input-group-prepend {
-        flex: 0 0 60%;
-    }
-
-    .input-group .input-group-text {
-        width: 100%;
-    }
-
-    .vertical-text {
-        transform: rotate(90deg);
-        transform-origin: left top 0;
-    }
-</style>
