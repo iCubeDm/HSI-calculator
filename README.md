@@ -3,7 +3,7 @@
 
 
 ```
-Инпут:
+Входные данные:
 плотность р-ра (г/см3) -> разделить на 0.1198
 диаметр долота (мм) -> разделить на 25.4 (в дюймах)
 диаметр насадок
@@ -14,7 +14,7 @@
 TFA (мм2) = суммарная площадь истечения (0.785 * sum(диам.насадок))
 
 
-Предефайн дата:
+Предопределенные данные:
 - Производительность (л/сек) -> гал/мин (х * 60 / 3.785)
 ```
 
@@ -31,8 +31,8 @@ npm install
 # serve with hot reload at localhost:9080
 npm run dev
 
-# build electron application for production
-npm run build
+# build electron application for windows
+npm run build:win32
 
 
 ```
